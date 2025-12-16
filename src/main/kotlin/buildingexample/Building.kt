@@ -1,6 +1,8 @@
 package me.apella.buildingexample
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -26,6 +28,12 @@ suspend fun perform(taskName: String) {
 }
 
 fun main() {
+    // buildConcurrent()
+    // buildParallel()
+    cancelSpecificJob()
+}
+
+fun buildConcurrent() {
     runBlocking {
         val windows = async { order(Product.WINDOWS) }
         val doors = async { order(Product.DOORS) }
@@ -36,5 +44,49 @@ fun main() {
             perform("installing ${doors.await().description}")
         }
     }
-
 }
+
+
+fun buildParallel() {
+    runBlocking {
+        val windows = async(Dispatchers.IO) { order(Product.WINDOWS) }
+        val doors = async(Dispatchers.IO) { order(Product.DOORS) }
+
+        launch(Dispatchers.Default) {
+            perform("laying bricks")
+            launch { perform("installing ${windows.await().description}") }
+            launch { perform("installing ${doors.await().description}") }
+        }
+    }
+}
+
+
+fun structuredConcurrency() {
+    runBlocking {
+        val windows = async(Dispatchers.IO) { order(Product.WINDOWS) }
+        val doors = async(Dispatchers.IO) { order(Product.DOORS) }
+
+        launch(Dispatchers.Default) {
+            perform("laying bricks")
+            launch { perform("installing ${windows.await().description}") }
+            launch { perform("installing ${doors.await().description}") }
+        }
+        cancel() // when needing to back out of a task
+    }
+}
+
+fun cancelSpecificJob() {
+    runBlocking {
+        val windows = async(Dispatchers.IO) { order(Product.WINDOWS) }
+        // construction of door cancelled - doors arrive but never installed
+        val doors = async(Dispatchers.IO) { order(Product.DOORS).also { cancel() } }
+
+        launch(Dispatchers.Default) {
+            perform("laying bricks")
+            launch { perform("installing ${windows.await().description}") }
+            launch { perform("installing ${doors.await().description}") }
+        }
+    }
+}
+
+// uncaught exceptions affect all coroutines in the same scope
